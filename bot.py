@@ -46,9 +46,34 @@ async def on_message(message):
             f"> • `!tanggal` - Cek wanci, tanggal, jeung jam ayeuna\n"
             f"> • `!ping` - Cek kecepatan respon bot\n"
             f"> • `!server` - Némbongkeun info server ieu\n"
+            f"> • `!bantuan [soal]` - Mantuan hitung matematika (Contoh: `!bantuan 5*5` atawa `!bantuan 10+20`)ur\n"
             f"> • `!cinfo` - Némbongkeun daptar command ieu"
         )
         await message.channel.send(balasan)
+
+    # Command !bantuan (Ngerjakeun Soal Matematika)
+    elif msg.startswith('!bantuan'):
+        # Nyokot éksprési matematika di tukangeun !bantuan
+        soal = message.content[8:].strip()
+        
+        if not soal:
+            await message.channel.send("⚠️ Masukin soal matematika na, Lur! Conto: `!bantuan 5*5` atau `!bantuan (10+5)*2`")
+            return
+
+        try:
+            # Ngamankeun input supaya ngan ukur angka jeung operator matematika nu dibaca
+            allowed_chars = set("0123456789+-*/(). ")
+            if not all(c in allowed_chars for c in soal):
+                await message.channel.send("❌ Wah, éksprési teu dikenal! Ngan ukur bisa angka jeung operator (+, -, *, /) wungkul.")
+                return
+
+            # Ngitung hasil matematika sacara aman
+            hasil = eval(soal)
+            balasan = f"🧮 **Pangajian Soal MTK:**\n> Soal: `{soal}`\n> Hasilna: **{hasil}**\n*(Beres PR mah ulah poho rehat, Lur! ☕)*"
+            await message.channel.send(balasan)
+            
+        except Exception:
+            await message.channel.send("❌ Euy, siga nu salah nulis format soalna. Coba deui nu bener!")
 
     # Command !ping
     elif msg == '!ping':
