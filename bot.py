@@ -1,7 +1,6 @@
 import os
-import random
+from datetime import datetime
 import discord
-from kamus import daftar_kamus
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -17,22 +16,58 @@ async def on_message(message):
     if message.author == client.user:
         return
 
-    # Pariksa lamun pesen diawali ku !sw
-    if message.content.lower().startswith('!sw'):
-        kata_kunci = message.content[3:].strip()
-        
-        if not kata_kunci:
-            await message.channel.send("Naon nu rek ditéang dina Kamus Gaul Sunda? Contoh: `!sw ganteng` atanapi `!sw budak baong`")
-            return
+    msg = message.content.lower()
 
-        # Milih definisi roasting sacara acak tina file kamus.py
-        arti_gaul = random.choice(daftar_kamus)
+    # Command !tanggal
+    if msg == '!tanggal':
+        now = datetime.now()
+        hari_list = ['Minggu', 'Senén', 'Selasa', 'Rabu', 'Kamis', 'Jumaah', 'Setu']
+        bulan_list = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
         
-        # Format balasan bot
-        balasan = f"📖 **Kamus Gaul Sunda (Edisi Roasting):**\n> **{kata_kunci.upper()}** *(n)*\n> Artinya: {arti_gaul}"
+        hari = hari_list[now.weekday()]
+        tanggal = now.strftime('%d')
+        bulan = bulan_list[now.month - 1]
+        tahun = now.strftime('%Y')
+        jam = now.strftime('%H:%M:%S')
+
+        balasan = (
+            f"📅 **Wanci & Tanggal Ayeuna:**\n"
+            f"> Dinten: **{hari}**, {tanggal} {bulan} {tahun}\n"
+            f"> Tabuh: **{jam} WIB**\n"
+            f"*(Mangga ulah poho ngopi, Lur! ☕)*"
+        )
         await message.channel.send(balasan)
 
-    elif message.content.lower() == '!sunda':
+    # Command !cinfo
+    elif msg == '!cinfo':
+        balasan = (
+            f"🤖 **Informasi Bot & Command:**\n"
+            f"> • `!sunda` - Salam khas Sunda pisan\n"
+            f"> • `!tanggal` - Cek wanci, tanggal, jeung jam ayeuna\n"
+            f"> • `!ping` - Cek kecepatan respon bot\n"
+            f"> • `!server` - Némbongkeun info server ieu\n"
+            f"> • `!cinfo` - Némbongkeun daptar command ieu"
+        )
+        await message.channel.send(balasan)
+
+    # Command !ping
+    elif msg == '!ping':
+        latency = round(client.latency * 1000)
+        await message.channel.send(f"🏓 Pong! Latensi bot: **{latency}ms** (Lancar jaya, Lur!)")
+
+    # Command !server
+    elif msg == '!server':
+        guild = message.guild
+        balasan = (
+            f"🏰 **Informasi Server:**\n"
+            f"> Ngaran Server: **{guild.name}**\n"
+            f"> Jumlah Anggota: **{guild.member_count} urang**\n"
+            f"> Nu Punya: {guild.owner}"
+        )
+        await message.channel.send(balasan)
+
+    # Command !sunda
+    elif msg == '!sunda':
         await message.channel.send('Wilujeng sumping di server Sunda, Lur! ☕ Mejeh Euy!')
 
 client.run(os.getenv('DISCORD_TOKEN'))
