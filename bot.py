@@ -3,8 +3,9 @@ import random
 from datetime import datetime
 import discord
 from discord.ext import tasks
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import io
+import aiohttp
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -35,8 +36,29 @@ def is_staff(member):
     staff_roles = ["owner", "admin", "supervisor", "staff", "moderator", "junior mod", "elite guard", "trial mod"]
     return any(role.name.lower() in staff_roles for role in member.roles) or member.guild_permissions.administrator
 
-# Fungsi Generate Gambar Jodoh UI Full & Ageung (Gradiasi Biru Téma Web)
-def create_jodoh_image(user1, user2, percent):
+# Fungsi Ngundeur & Bunderkeun Avatar
+async def get_circular_avatar(user):
+    avatar_url = user.display_avatar.url
+    async with aiohttp.ClientSession() as session:
+        async with session.get(str(avatar_url)) as resp:
+            if resp.status == 200:
+                data = await resp.read()
+                img = Image.open(io.BytesIO(data)).convert("RGBA")
+                img = img.resize((120, 120))
+                
+                # Bunderkeun gambar
+                mask = Image.new("L", (120, 120), 0)
+                draw = ImageDraw.Draw(mask)
+                draw.ellipse((0, 0, 120, 120), fill=255)
+                
+                output = Image.new("RGBA", (120, 120), (0, 0, 0, 0))
+                output.paste(img, (0, 0), mask=mask)
+                return output
+    # Fallback lamun gagal
+    return Image.new("RGBA", (120, 120), (50, 50, 50, 255))
+
+# Fungsi Generate Gambar Jodoh UI Full, Ageung, & Aya Profil Avatar
+async def create_jodoh_image(user1, user2, percent):
     width, height = 800, 400
     image = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(image)
@@ -48,31 +70,40 @@ def create_jodoh_image(user1, user2, percent):
         b = int(40 + (220 - 40) * (y / height))
         draw.line([(0, y), (width, y)], fill=(r, g, b))
 
-    # Coba muat font default anu rada ageung atanapi fallback
     try:
-        font_besar = ImageFont.truetype("arial.ttf", 40)
-        font_kecil = ImageFont.truetype("arial.ttf", 24)
+        font_besar = ImageFont.truetype("arial.ttf", 32)
+        font_kecil = ImageFont.truetype("arial.ttf", 20)
+        font_persen = ImageFont.truetype("arial.ttf", 36)
     except IOError:
         font_besar = ImageFont.load_default()
         font_kecil = ImageFont.load_default()
+        font_persen = ImageFont.load_default()
 
-    # Layout Posisi Teks & UI
-    # Jodoh 1 (Kénca/Luhur)
-    draw.text((50, 60), "Jodoh 1:", fill=(150, 200, 255), font=font_kecil)
-    draw.text((50, 95), f"{user1.name}", fill=(255, 255, 255), font=font_besar)
+    # Candak Avatar Dua Pamilon
+    avatar1 = await get_circular_avatar(user1)
+    avatar2 = await get_circular_avatar(user2)
+
+    # Tempelkeun Avatar & Teks Jodoh 1 (Kénca)
+    image.paste(avatar1, (50, 80), avatar1)
+    draw.text((190, 85), "Jodoh 1:", fill=(150, 200, 255), font=font_kecil)
+    draw.text((190, 115), f"{user1.display_name}", fill=(255, 255, 255), font=font_besar)
+    draw.text((190, 155), f"@{user1.name}", fill=(170, 170, 170), font=font_kecil)
 
     # Love Icon / Simbol di Tengah
-    draw.text((380, 160), "❤️", fill=(255, 70, 100), font=font_besar)
+    draw.text((375, 170), "❤️", fill=(255, 70, 100), font=font_besar)
 
-    # Jodoh 2 (Katuhu/Handap)
-    draw.text((50, 220), "Jodoh 2:", fill=(150, 200, 255), font=font_kecil)
-    draw.text((50, 255), f"{user2.name}", fill=(255, 255, 255), font=font_besar)
+    # Tempelkeun Avatar & Teks Jodoh 2 (Katuhu)
+    image.paste(avatar2, (50, 230), avatar2)
+    draw.text((190, 235), "Jodoh 2:", fill=(150, 200, 255), font=font_kecil)
+    draw.text((190, 265), f"{user2.display_name}", fill=(255, 255, 255), font=font_besar)
+    draw.text((190, 305), f"@{user2.name}", fill=(170, 170, 170), font=font_kecil)
 
-    # Garis Pamingpin
-    draw.line([(50, 320), (750, 320)], fill=(50, 120, 200), width=2)
+    # Garis Pamingpin Handap
+    draw.line([(50, 360), (750, 360)], fill=(50, 120, 200), width=2)
 
     # Tingkat Kecocokan
-    draw.text((50, 345), f"Tingkat Kecocokannya: {percent}%", fill=(255, 255, 0), font=font_kecil)
+    draw.text((500, 70), f"Tingkat Kecocokannya:", fill=(200, 220, 255), font=font_kecil)
+    draw.text((500, 100), f"{percent}%", fill=(255, 255, 0), font=font_persen)
     
     buffer = io.BytesIO()
     image.save(buffer, format='PNG')
@@ -210,8 +241,13 @@ async def on_message(message):
             return
         user1, user2 = message.mentions[0], message.mentions[1]
         percent = random.randint(1, 100)
-        img_buffer = create_jodoh_image(user1, user2, percent)
+        img_buffer = await create_jodoh_image(user1, user2, percent)
         await message.channel.send(file=discord.File(img_buffer, filename="jodoh.png"))
+
+    elif msg == '!dadu':
+        angka_dadu = random.randint(1, 6)
+        gambar_dadu = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
+        await message.channel.send(f"🎲 **Ngocok Dadu:** {gambar_dadu[angka_dadu - 1]} Angka anu kaluar: **{angka_dadu}**")
 
     elif msg == '!tanggal':
         now = datetime.now()
@@ -240,12 +276,13 @@ async def on_message(message):
     elif msg == '!cinfo':
         balasan = (
             "🤖 **Daptar Command Bot:**\n"
-            "> • `!jodoh @u1 @u2` - Cek kecocokan (Visual UI Card Ageung)\n"
+            "> • `!jodoh @u1 @u2` - Cek kecocokan (Visual Profil & UI Ageung)\n"
+            "> • `!dadu` - Ngocok angka dadu (1-6)\n"
+            "> • `!bantuan [soal]` - Kalkulator matematika\n"
             "> • `!tanggal` - Cek wanci & tanggal\n"
             "> • `!cuaca` - Cek cuaca akurat sasuai waktu\n"
             "> • `!ping` - Cek latensi bot\n"
             "> • `!server` - Info server\n"
-            "> • `!bantuan [soal]` - Ngitung matematika\n"
             "> • `!translate [tulis ID]` - Tarjamahkeun Indo kana Sunda\n"
             "> • `!afk [pesan]` - Status AFK\n"
             "> 🛡️ **Moderasi (Staf Only):**\n"
@@ -255,13 +292,18 @@ async def on_message(message):
 
     elif msg.startswith('!bantuan'):
         soal = message.content[8:].strip()
-        if not soal: return
+        if not soal:
+            await message.channel.send("⚠️ Conto: `!bantuan 15 + 25 * 2`")
+            return
         try:
             allowed_chars = set("0123456789+-*/(). ")
-            if not all(c in allowed_chars for c in soal): return
+            if not all(c in allowed_chars for c in soal):
+                await message.channel.send("❌ Karakter matematika teu diijinkeun!")
+                return
             hasil = eval(soal)
-            await message.channel.send(f"🧮 Hasilna: **{hasil}**")
-        except Exception: pass
+            await message.channel.send(f"🧮 Hasil tina `{soal}` nyaéta: **{hasil}**")
+        except Exception:
+            await message.channel.send("❌ Gagal ngitung! Pastikeunformat matematika bener.")
 
     elif msg.startswith('!translate'):
         teks_indo = message.content[10:].strip().lower()
