@@ -2,7 +2,6 @@ name: Jalankan Bot Discord Sunda
 
 on:
   schedule:
-    # Menjalankan bot setiap jam atau pakai workflow_dispatch
     - cron: '0 * * * *' 
   workflow_dispatch:
 
@@ -24,6 +23,6 @@ jobs:
 
       - name: Jalankan Bot
         env:
-          DISCORD_TOKEN: ${<secrets.DISCORD_TOKEN>}
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
         run: |
           python bot.py
