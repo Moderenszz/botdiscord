@@ -2,15 +2,29 @@ import os
 import random
 from datetime import datetime
 import discord
+from discord.ext import tasks
 
 intents = discord.Intents.default()
 intents.message_content = True
 
 client = discord.Client(intents=intents)
 
+# Fungsi background loop pikeun ngarobah status tanggal unggal poé (atawa per jam)
+@tasks.loop(hours=24)
+async def update_status_tanggal():
+    now = datetime.now()
+    tanggal_str = now.strftime('%d/%m/%Y')
+    
+    # Nyetél status bot jdi "Playing [Tanggal Ayeuna]"
+    activity = discord.Game(name=f"📅 {tanggal_str} | !cinfo")
+    await client.change_presence(activity=activity)
+
 @client.event
 async def on_ready():
     print(f'Bot geus aktif, lur! Asup sebagai {client.user}')
+    # Mimitian ngajalankeun loop status tanggal pas bot mimiti nyala
+    if not update_status_tanggal.is_running():
+        update_status_tanggal.start()
 
 @client.event
 async def on_message(message):
@@ -95,7 +109,6 @@ async def on_message(message):
     # Command !dadu (Ngocok Dadu 1-6)
     elif msg == '!dadu':
         angka_dadu = random.randint(1, 6)
-        # Emoji dadu dumasar kana angka
         dadu_emoji = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
         await message.channel.send(f"🎲 **Kocokan Dadu:** {dadu_emoji[angka_dadu]} Hasilna nyaéta **{angka_dadu}**!")
 
