@@ -16,6 +16,6 @@ async def on_message(message):
         return
 
     if message.content.lower() == '!sunda':
-        await message.channel.write('Wilujeng sumping di server Sunda, Lur! ☕ Mejeh Euy!')
+        await message.channel.send('Wilujeng sumping di server Sunda, Lur! ☕ Mejeh Euy!')
 
 client.run(os.getenv('DISCORD_TOKEN'))
