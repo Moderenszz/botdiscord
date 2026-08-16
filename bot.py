@@ -6,155 +6,281 @@ from discord.ext import tasks
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True  # Penting pisan pikeun deteksi member & moderation
 
 client = discord.Client(intents=intents)
 
-# Fungsi background loop pikeun ngarobah status tanggal unggal poé (atawa per jam)
+# Variabel Global pikeun simpen status AFK (Puntten lebetkeun ID Discord anjeun di dieu, cth: 123456789)
+MY_DISCORD_ID = 0  # Ganti ku User ID anjeun séwang-séwangan
+is_afk = False
+afk_pesan = ""
+
 @tasks.loop(hours=24)
 async def update_status_tanggal():
     now = datetime.now()
     tanggal_str = now.strftime('%d/%m/%Y')
-    
-    # Nyetél status bot jdi "Playing [Tanggal Ayeuna]"
     activity = discord.Game(name=f"📅 {tanggal_str} | !cinfo")
     await client.change_presence(activity=activity)
 
 @client.event
 async def on_ready():
     print(f'Bot geus aktif, lur! Asup sebagai {client.user}')
-    # Mimitian ngajalankeun loop status tanggal pas bot mimiti nyala
     if not update_status_tanggal.is_running():
         update_status_tanggal.start()
 
 @client.event
 async def on_message(message):
+    global is_afk, afk_pesan
+
     if message.author == client.user:
         return
 
+    # --- FITUR AFK SYSTEM ---
+    # Lamun aya nu mention anjeun sarta posisi nuju AFK
+    if is_afk and client.user.id != message.author.id:
+        if message.mentions and any(m.id == MY_DISCORD_ID for m in message.mentions):
+            await message.channel.send(f"⚠️ {message.author.mention}, dunungan kuring (Zerry) nuju **AFK**!\n> Alesanana: *\"{afk_pesan}\"*")
+
     msg = message.content.lower()
 
-    # Command !tanggal
-    if msg == '!tanggal':
+    # Set AFK Command (!afk [pesan] / !afk hungkul)
+    if msg.startswith('!afk'):
+        # Pariksa naha nu ngetik téh bener anjeun atawa bebas (bisa diatur)
+        parts = message.content.split(maxsplit=1)
+        if len(parts) > 1:
+            is_afk = True
+            afk_pesan = parts[1]
+            await message.channel.send(f"💤 Status AFK diaktifkeun!\n> Pesan: *\"{afk_pesan}\"*")
+        else:
+            if is_afk:
+                is_afk = False
+                afk_pesan = ""
+                await message.channel.send("✅ Status AFK ayeuna **Pareum** (Kantos balik deui online).")
+            else:
+                is_afk = True
+                afk_pesan = "Keur sibuk / teu aya di tempat."
+                await message.channel.send("💤 Status AFK diaktifkeun (Tanpa pesan husus).")
+        return
+
+    # Helper Cek Hak Akses Staff (Roles: Owner, Admin, Supervisor, Moderator, Junior Mod, Elite Guard, Trial Mod)
+    def is_staff(member):
+        staff_roles = ["owner", "admin", "supervisor", "staff", "moderator", "junior mod", "elite guard", "trial mod"]
+        return any(role.name.lower() in staff_roles for role in member.roles) or member.guild_permissions.administrator
+
+    # --- SERVER MANAGEMENT COMMANDS (HUSUS STAFF/ADMIN) ---
+
+    # !clear [jumlah]
+    if msg.startswith('!clear'):
+        if not is_staff(message.author):
+            await message.channel.send("❌ Hapunten, command ieu khusus kanggo Staf/Admin!")
+            return
+        parts = message.content.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            await message.channel.send("⚠️ Conto: `!clear 10` (Hapus 10 pesen)")
+            return
+        jumlah = int(parts[1])
+        await message.channel.purge(limit=jumlah + 1)
+        await message.channel.send(f"🧹 Berhasil mupus {jumlah} pesen, Lur!", delete_after=3)
+
+    # !warn @user [alasan]
+    elif msg.startswith('!warn'):
+        if not is_staff(message.author):
+            await message.channel.send("❌ Husus Staf/Admin, Lur!")
+            return
+        if not message.mentions:
+            await message.channel.send("⚠️ Tag jalmana! Conto: `!warn @user spam chat`")
+            return
+        target = message.mentions[0]
+        alasan = message.content.replace('!warn', '').replace(target.mention, '').strip()
+        if not alasan: alasan = "Teu aya alesan khusus."
+        await message.channel.send(f"⚠️ **WARNING:** {target.mention} geus di-warn ku Staf!\n> Alesan: *{alasan}*")
+
+    # !mute @user
+    elif msg.startswith('!mute'):
+        if not is_staff(message.author):
+            await message.channel.send("❌ Husus Staf/Admin, Lur!")
+            return
+        if not message.mentions:
+            await message.channel.send("⚠️ Tag jalmana nu rek di-mute! Conto: `!mute @user`")
+            return
+        target = message.mentions[0]
+        muted_role = discord.utils.get(message.guild.roles, name="Muted")
+        if not muted_role:
+            try:
+                muted_role = await message.guild.create_role(name="Muted")
+                for channel in message.guild.channels:
+                    await channel.set_permissions(muted_role, send_messages=False, speak=False)
+            except Exception:
+                pass
+        try:
+            await target.add_roles(muted_role)
+            await message.channel.send(f"🔇 Berhasil nge-mute {target.mention}!")
+        except Exception:
+            await message.channel.send("❌ Gagal nge-mute! Pastikeun posisi role bot di luhur jalma nu rek di-mute.")
+
+    # !unmute @user
+    elif msg.startswith('!unmute'):
+        if not is_staff(message.author):
+            await message.channel.send("❌ Husus Staf/Admin, Lur!")
+            return
+        if not message.mentions:
+            await message.channel.send("⚠️ Tag jalmana! Conto: `!unmute @user`")
+            return
+        target = message.mentions[0]
+        muted_role = discord.utils.get(message.guild.roles, name="Muted")
+        if muted_role and muted_role in target.roles:
+            await target.remove_roles(muted_role)
+            await message.channel.send(f"🔊 {target.mention} ayeuna geus di-unmute!")
+        else:
+            await message.channel.send("⚠️ Jalma éta teu gaduh status mute.")
+
+    # !kick @user
+    elif msg.startswith('!kick'):
+        if not is_staff(message.author):
+            await message.channel.send("❌ Husus Staf/Admin, Lur!")
+            return
+        if not message.mentions:
+            await message.channel.send("⚠️ Tag jalmana! Conto: `!kick @user`")
+            return
+        target = message.mentions[0]
+        try:
+            await target.kick(reason="Di-kick ku Staf server.")
+            await message.channel.send(f"👢 Berhasil ngaluarkeun (kick) {target.name} ti server.")
+        except Exception:
+            await message.channel.send("❌ Gagal ngakick! Cek permission bot.")
+
+    # !ban @user
+    elif msg.startswith('!ban'):
+        if not is_staff(message.author):
+            await message.channel.send("❌ Husus Staf/Admin, Lur!")
+            return
+        if not message.mentions:
+            await message.channel.send("⚠️ Tag jalmana! Conto: `!ban @user`")
+            return
+        target = message.mentions[0]
+        try:
+            await target.ban(reason="Di-ban ku Staf server.")
+            await message.channel.send(f"🔨 Berhasil ngabanned {target.name} ti server!")
+        except Exception:
+            await message.channel.send("❌ Gagal ngaban! Cek permission bot.")
+
+    # !slowmode [detik]
+    elif msg.startswith('!slowmode'):
+        if not is_staff(message.author):
+            await message.channel.send("❌ Husus Staf/Admin, Lur!")
+            return
+        parts = message.content.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            await message.channel.send("⚠️ Conto: `!slowmode 5` (Set slowmode 5 detik)")
+            return
+        detik = int(parts[1])
+        try:
+            await message.channel.edit(slowmode_delay=detik)
+            await message.channel.send(f"⏱️ Slowmode di channel ieu diset janten **{detik} detik**.")
+        except Exception:
+            await message.channel.send("❌ Gagal ngeset slowmode!")
+
+    # !lock
+    elif msg == '!lock':
+        if not is_staff(message.author):
+            await message.channel.send("❌ Husus Staf/Admin, Lur!")
+            return
+        try:
+            await message.channel.set_permissions(message.guild.default_role, send_messages=False)
+            await message.channel.send("🔒 Channel ieu geus di-lock (dikonci) ku Staf!")
+        except Exception:
+            await message.channel.send("❌ Gagal mengunci channel!")
+
+    # !unlock
+    elif msg == '!unlock':
+        if not is_staff(message.author):
+            await message.channel.send("❌ Husus Staf/Admin, Lur!")
+            return
+        try:
+            await message.channel.set_permissions(message.guild.default_role, send_messages=True)
+            await message.channel.send("🔓 Channel ieu geus di-unlock (dibuka deui)!")
+        except Exception:
+            await message.channel.send("❌ Gagal membuka channel!")
+
+    # --- COMMAND UMUM ---
+    elif msg == '!tanggal':
         now = datetime.now()
         hari_list = ['Minggu', 'Senén', 'Selasa', 'Rabu', 'Kamis', 'Jumaah', 'Setu']
         bulan_list = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
-        
-        hari = hari_list[now.weekday()]
-        tanggal = now.strftime('%d')
-        bulan = bulan_list[now.month - 1]
-        tahun = now.strftime('%Y')
-        jam = now.strftime('%H:%M:%S')
-
-        balasan = (
-            f"📅 **Wanci & Tanggal Ayeuna:**\n"
-            f"> Dinten: **{hari}**, {tanggal} {bulan} {tahun}\n"
-            f"> Tabuh: **{jam} WIB**\n"
-            f"*(Mangga ulah poho ngopi, Lur! ☕)*"
-        )
+        balasan = f"📅 **Wanci & Tanggal:** {hari_list[now.weekday()]}, {now.strftime('%d')} {bulan_list[now.month - 1]} {now.strftime('%Y')} | {now.strftime('%H:%M:%S')} WIB"
         await message.channel.send(balasan)
 
-    # Command !cinfo
     elif msg == '!cinfo':
         balasan = (
-            f"🤖 **Informasi Bot & Daptar Command:**\n"
-            f"> • `!sunda` - Salam khas Sunda pisan\n"
-            f"> • `!tanggal` - Cek wanci, tanggal, jeung jam ayeuna\n"
-            f"> • `!ping` - Cek kecepatan respon bot\n"
-            f"> • `!server` - Némbongkeun info server ieu\n"
-            f"> • `!bantuan [soal]` - Ngitung matematika / PR sakola (Contoh: `!bantuan 5*5`)\n"
-            f"> • `!tebak [angka]` - Game nebak angka 1 nepi ka 10\n"
-            f"> • `!dadu` - Ngocok dadu maya (angka 1 - 6)\n"
-            f"> • `!cuaca` - Cek perkiraan cuaca lokal\n"
-            f"> • `!random [pilihan1], [pilihan2]` - Milih kaputusan acak\n"
-            f"> • `!cinfo` - Némbongkeun daptar command ieu"
+            f"🤖 **Daptar Command Bot Sunda:**\n"
+            f"> • `!sunda` - Salam khas Sunda\n"
+            f"> • `!tanggal` - Cek wanci & tanggal\n"
+            f"> • `!ping` - Cek latensi bot\n"
+            f"> • `!server` - Info server\n"
+            f"> • `!bantuan [soal]` - Ngitung matematika\n"
+            f"> • `!tebak [angka]` - Game nebak angka\n"
+            f"> • `!dadu` - Kocok dadu (1-6)\n"
+            f"> • `!cuaca` - Cek cuaca\n"
+            f"> • `!afk [pesan]` - Aktifkeun status AFK anjeun\n"
+            f"> 🛡️ **Moderasi (Staf Only):**\n"
+            f"> `!clear`, `!warn`, `!mute`, `!unmute`, `!kick`, `!ban`, `!slowmode`, `!lock`, `!unlock`"
         )
         await message.channel.send(balasan)
 
-    # Command !bantuan (Matematika)
     elif msg.startswith('!bantuan'):
         soal = message.content[8:].strip()
         if not soal:
-            await message.channel.send("⚠️ Masukin soal matematika na, Lur! Conto: `!bantuan 5*5` atawa `!bantuan (10+5)*2`")
+            await message.channel.send("⚠️ Conto: `!bantuan 5*5`")
             return
-
         try:
             allowed_chars = set("0123456789+-*/(). ")
             if not all(c in allowed_chars for c in soal):
-                await message.channel.send("❌ Ngan ukur bisa angka jeung operator (+, -, *, /) wungkul, Lur!")
+                await message.channel.send("❌ Ngan ukur angka jeung operator (+, -, *, /)!")
                 return
-
             hasil = eval(soal)
-            balasan = f"🧮 **Pangajian Soal MTK:**\n> Soal: `{soal}`\n> Hasilna: **{hasil}**\n*(Beres PR mah ulah poho rehat, Lur! ☕)*"
-            await message.channel.send(balasan)
+            await message.channel.send(f"🧮 Hasilna: **{hasil}**")
         except Exception:
-            await message.channel.send("❌ Euy, salah nulis format soalna. Coba deui nu bener!")
+            await message.channel.send("❌ Format soal salah!")
 
-    # Command !tebak (Game Angka 1-10)
     elif msg.startswith('!tebak'):
         parts = message.content.split()
         if len(parts) < 2:
-            await message.channel.send("🎮 Coba tebak angka ti 1 nepi ka 10! Ketik: `!tebak [angka]` (Contoh: `!tebak 7`)")
+            await message.channel.send("⚠️ Conto: `!tebak 7`")
             return
-        
         try:
             tebakan = int(parts[1])
-            angka_bot = random.randint(1, 10)
-            if tebakan == angka_bot:
-                await message.channel.send(f"🎉 **HOREAM BNER!** Tebakan maneh bener **{angka_bot}**! Jago pisan euy!")
+            bot_num = random.randint(1, 10)
+            if tebakan == bot_num:
+                await message.channel.send(f"🎉 Bener pisan! Angkana **{bot_num}**!")
             else:
-                await message.channel.send(f"❌ **SALAH!** Angka nu bener mah **{angka_bot}**, maneh nembak **{tebakan}**. Coba deui!")
+                await message.channel.send(f"❌ Salah! Angka nu bener **{bot_num}**.")
         except ValueError:
-            await message.channel.send("⚠️ Kudu angka, Lur! Conto: `!tebak 5`")
+            await message.channel.send("⚠️ Kudu angka, Lur!")
 
-    # Command !dadu (Ngocok Dadu 1-6)
     elif msg == '!dadu':
-        angka_dadu = random.randint(1, 6)
-        dadu_emoji = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
-        await message.channel.send(f"🎲 **Kocokan Dadu:** {dadu_emoji[angka_dadu]} Hasilna nyaéta **{angka_dadu}**!")
+        angka = random.randint(1, 6)
+        emojis = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
+        await message.channel.send(f"🎲 Dadu: {emojis[angka]} ({angka})")
 
-    # Command !cuaca (Simulasi Cuaca Sunda)
     elif msg == '!cuaca':
-        kondisi = [
-            "Tiris pisan euy, siga di lembur subuh-subuh ❄️", 
-            "Panas morongkol, ulah poho nginum cai tiis ☀️", 
-            "Hujan ageung / keclak-keclak, siapkeun payung atawa sarung 🌧️", 
-            "Hujan mintul sedeng, ngeunahna mah ngopi bari neda bala-bala ☕"
-        ]
-        pilih_cuaca = random.choice(kondisi)
-        await message.channel.send(f"🌤️ **Perkiraan Cuaca Wilayah Sunda:**\n> Status: **{pilih_cuaca}**")
+        kondisi = ["Tiris pisan ❄️", "Panas morongkol ☀️", "Hujan ageung 🌧️", "Hujan sedeng ngeunah ngopi ☕"]
+        await message.channel.send(f"🌤️ Cuaca: **{random.choice(kondisi)}**")
 
-    # Command !random (Milih kaputusan)
     elif msg.startswith('!random'):
-        pilihan_str = message.content[7:].strip()
-        if not pilihan_str:
-            await message.channel.send("🎲 Masukin pilihanna dipisah ku koma! Conto: `!random dahar bakso, dahar mie ayam`")
-            return
-        
-        items = [item.strip() for item in pilihan_str.split(',')]
+        pilihan = message.content[7:].strip()
+        items = [i.strip() for i in pilihan.split(',')]
         if len(items) < 2:
-            await message.channel.send("⚠️ Masukin minimal 2 pilihan dipisah ku koma, Lur!")
+            await message.channel.send("⚠️ Conto: `!random dahar bakso, dahar mie ayam`")
             return
-        
-        pilihan_terpilih = random.choice(items)
-        await message.channel.send(f"🎲 **Hasil Keputusan AI:**\n> Pilihan nu kapilih nyaéta: **{pilihan_terpilih}** (Gasskeun ulah loba mikir!)")
+        await message.channel.send(f"🎲 Pilihan kapilih: **{random.choice(items)}**")
 
-    # Command !ping
     elif msg == '!ping':
-        latency = round(client.latency * 1000)
-        await message.channel.send(f"🏓 Pong! Latensi bot: **{latency}ms** (Lancar jaya, Lur!)")
+        await message.channel.send(f"🏓 Pong! Latensi: **{round(client.latency * 1000)}ms**")
 
-    # Command !server
     elif msg == '!server':
         guild = message.guild
-        balasan = (
-            f"🏰 **Informasi Server:**\n"
-            f"> Ngaran Server: **{guild.name}**\n"
-            f"> Jumlah Anggota: **{guild.member_count} urang**\n"
-            f"> Nu Punya: {guild.owner}"
-        )
-        await message.channel.send(balasan)
+        await message.channel.send(f"🏰 **{guild.name}** | Anggota: **{guild.member_count} urang** | Owner: {guild.owner}")
 
-    # Command !sunda
     elif msg == '!sunda':
         await message.channel.send('Wilujeng sumping di server Sunda, Lur! ☕ Mejeh Euy!')
 
