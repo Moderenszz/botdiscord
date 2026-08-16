@@ -3,7 +3,7 @@ import random
 from datetime import datetime
 import discord
 from discord.ext import tasks
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import io
 
 intents = discord.Intents.default()
@@ -35,23 +35,44 @@ def is_staff(member):
     staff_roles = ["owner", "admin", "supervisor", "staff", "moderator", "junior mod", "elite guard", "trial mod"]
     return any(role.name.lower() in staff_roles for role in member.roles) or member.guild_permissions.administrator
 
-# Fungsi Generate Gambar Jodoh Gradiasi Biru Tua ka Biru Muda
+# Fungsi Generate Gambar Jodoh UI Full & Ageung (Gradiasi Biru Téma Web)
 def create_jodoh_image(user1, user2, percent):
-    width, height = 400, 200
+    width, height = 800, 400
     image = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(image)
     
-    # Gradiasi manual ti biru tua ka biru muda
+    # Gradiasi manual ti biru tua ka biru caang (Gaya Sortamenfy)
     for y in range(height):
-        r = int(0 + (135 - 0) * (y / height))
-        g = int(0 + (206 - 0) * (y / height))
-        b = int(139 + (235 - 139) * (y / height))
+        r = int(5 + (30 - 5) * (y / height))
+        g = int(10 + (100 - 10) * (y / height))
+        b = int(40 + (220 - 40) * (y / height))
         draw.line([(0, y), (width, y)], fill=(r, g, b))
 
-    # Teks kana gambar
-    draw.text((20, 40), "❤️ Cek Jodoh:", fill=(255, 255, 255))
-    draw.text((20, 70), f"{user1.name} & {user2.name}", fill=(255, 255, 255))
-    draw.text((20, 120), f"Tingkat Kecocokan: {percent}%", fill=(255, 255, 0))
+    # Coba muat font default anu rada ageung atanapi fallback
+    try:
+        font_besar = ImageFont.truetype("arial.ttf", 40)
+        font_kecil = ImageFont.truetype("arial.ttf", 24)
+    except IOError:
+        font_besar = ImageFont.load_default()
+        font_kecil = ImageFont.load_default()
+
+    # Layout Posisi Teks & UI
+    # Jodoh 1 (Kénca/Luhur)
+    draw.text((50, 60), "Jodoh 1:", fill=(150, 200, 255), font=font_kecil)
+    draw.text((50, 95), f"{user1.name}", fill=(255, 255, 255), font=font_besar)
+
+    # Love Icon / Simbol di Tengah
+    draw.text((380, 160), "❤️", fill=(255, 70, 100), font=font_besar)
+
+    # Jodoh 2 (Katuhu/Handap)
+    draw.text((50, 220), "Jodoh 2:", fill=(150, 200, 255), font=font_kecil)
+    draw.text((50, 255), f"{user2.name}", fill=(255, 255, 255), font=font_besar)
+
+    # Garis Pamingpin
+    draw.line([(50, 320), (750, 320)], fill=(50, 120, 200), width=2)
+
+    # Tingkat Kecocokan
+    draw.text((50, 345), f"Tingkat Kecocokannya: {percent}%", fill=(255, 255, 0), font=font_kecil)
     
     buffer = io.BytesIO()
     image.save(buffer, format='PNG')
@@ -219,7 +240,7 @@ async def on_message(message):
     elif msg == '!cinfo':
         balasan = (
             "🤖 **Daptar Command Bot:**\n"
-            "> • `!jodoh @u1 @u2` - Cek kecocokan (Visual Gradiasi Biru)\n"
+            "> • `!jodoh @u1 @u2` - Cek kecocokan (Visual UI Card Ageung)\n"
             "> • `!tanggal` - Cek wanci & tanggal\n"
             "> • `!cuaca` - Cek cuaca akurat sasuai waktu\n"
             "> • `!ping` - Cek latensi bot\n"
