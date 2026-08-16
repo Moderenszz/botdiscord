@@ -23,6 +23,6 @@ jobs:
 
       - name: Jalankan Bot
         env:
-          DISCORD_TOKEN: ${{ DISCORD_TOKEN }}
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
         run: |
           python bot.py
