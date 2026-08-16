@@ -2,7 +2,7 @@ import os
 import random
 from datetime import datetime
 import discord
-from PIL import Image, ImageDraw, ImageFont # Peryogi library Pillow
+from PIL import Image, ImageDraw
 import io
 
 intents = discord.Intents.default()
@@ -13,23 +13,22 @@ client = discord.Client(intents=intents)
 
 # --- FUNGSI GENERATE GAMBAR JODOH ---
 def create_jodoh_image(user1, user2, percent):
-    # Jieun gambar gradiasi biru tua ka biru muda (Ukuran 400x200)
     width, height = 400, 200
     image = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(image)
     
-    # Logika gradiasi manual
+    # Logika gradiasi manual (Biru tua ka biru muda)
     for y in range(height):
-        r = int(0 + (135 - 0) * (y / height))    # Gradiasi biru tua ka biru muda
+        r = int(0 + (135 - 0) * (y / height))
         g = int(0 + (206 - 0) * (y / height))
         b = int(139 + (235 - 139) * (y / height))
         draw.line([(0, y), (width, y)], fill=(r, g, b))
 
-    # Tambah teks persenan
-    draw.text((10, 50), f"{user1.name} & {user2.name}", fill=(255, 255, 255))
-    draw.text((150, 100), f"{percent}% Cocok!", fill=(255, 255, 0))
+    # Tambah teks kana gambar
+    draw.text((20, 40), f"Cek Jodoh:", fill=(255, 255, 255))
+    draw.text((20, 70), f"{user1.name} & {user2.name}", fill=(255, 255, 255))
+    draw.text((20, 120), f"Tingkat Cocok: {percent}%", fill=(255, 255, 0))
     
-    # Simpen ka buffer
     buffer = io.BytesIO()
     image.save(buffer, format='PNG')
     buffer.seek(0)
@@ -45,7 +44,7 @@ async def on_message(message):
     # --- COMMAND JODOH (Visual Gradiasi) ---
     if msg.startswith('!jodoh'):
         if len(message.mentions) < 2:
-            await message.channel.send("⚠️ Tag dua jalma! Conto: `!jodoh @user1 @user2`")
+            await message.channel.send("Tag dua jalma! Conto: `!jodoh @user1 @user2`")
             return
         
         user1, user2 = message.mentions[0], message.mentions[1]
@@ -54,26 +53,43 @@ async def on_message(message):
         img_buffer = create_jodoh_image(user1, user2, percent)
         await message.channel.send(file=discord.File(img_buffer, filename="jodoh.png"))
 
-    # --- COMMAND UTILITAS (Lain Jokes) ---
+    # --- COMMAND UTILITAS (Fungsional) ---
     elif msg == '!tanggal':
         now = datetime.now()
-        await message.channel.send(f"📅 Wanci: {now.strftime('%d/%m/%Y %H:%M:%S')}")
+        hari_list = ['Minggu', 'Senén', 'Selasa', 'Rabu', 'Kamis', 'Jumaah', 'Setu']
+        bulan_list = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+        balasan = f"Wanci & Tanggal: {hari_list[now.weekday()]}, {now.strftime('%d')} {bulan_list[now.month - 1]} {now.strftime('%Y')} | {now.strftime('%H:%M:%S')} WIB"
+        await message.channel.send(balasan)
 
     elif msg == '!ping':
-        await message.channel.send(f"🏓 Latensi: {round(client.latency * 1000)}ms")
+        await message.channel.send(f"Latensi: {round(client.latency * 1000)}ms")
 
     elif msg.startswith('!translate'):
-        # Logika translate anu sateuacanna tetep aya
-        ... 
+        teks_indo = message.content[10:].strip().lower()
+        if not teks_indo:
+            await message.channel.send("Conto: `!translate saya mau makan`")
+            return
+
+        kamus_id_su = {
+            "saya": "urang / sim kuring", "kamu": "maneh / anjeun", "dia": "manehna",
+            "mau": "hayang / badé", "makan": "dahar / neda", "minum": "inum / leueut",
+            "tidur": "saré", "pergi": "indit / angkat", "pulang": "balik",
+            "tidak": "teu / henteu", "iya": "enya", "bagus": "alus / saé",
+            "kenapa": "naha", "apa": "naon", "dimana": "di mana", "siapa": "saha"
+        }
+        
+        hasil_translate = [kamus_id_su.get(kata, f"*{kata}*") for kata in teks_indo.split()]
+        terjemahan_final = " ".join(hasil_translate)
+        await message.channel.send(f"Translate Indo ➔ Sunda:\nIndonésia: {teks_indo}\nSunda: {terjemahan_final}")
 
     elif msg == '!cinfo':
         balasan = (
-            "🛠️ **Command Fungsional:**\n"
-            "> `!jodoh @u1 @u2` - Cek kecocokan (Visual)\n"
-            "> `!tanggal` - Cek wanci\n"
-            "> `!ping` - Latensi\n"
-            "> `!translate` - Tarjamahkeun\n"
-            "> `!clear`, `!mute`, `!kick`, `!ban` (Staf Only)"
+            "Daptar Command Fungsional:\n"
+            "• `!jodoh @u1 @u2` - Cek kecocokan (Visual Gradiasi)\n"
+            "• `!tanggal` - Cek wanci & tanggal\n"
+            "• `!ping` - Cek latensi\n"
+            "• `!translate [teks]` - Tarjamahkeun Indo kana Sunda\n"
+            "• Moderasi Staf: `!clear`, `!mute`, `!kick`, `!ban`"
         )
         await message.channel.send(balasan)
 
