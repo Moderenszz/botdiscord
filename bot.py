@@ -105,11 +105,10 @@ async def create_jodoh_image(user1, user2, percent):
 # --- EVENT AUDIT LOG & KEAMANAN (ANTI-RAID / PHISHING) ---
 @client.event
 async def on_member_join(member):
-    # Fitur Anti-Raid Sederhana
+    global recent_joins
     now = datetime.now()
     recent_joins.append(now)
     # Bersihkan data join anu liwat ti 10 detik ka tukang
-    global recent_joins
     recent_joins = [t for t in recent_joins if (now - t).total_seconds() < 10]
     
     staff_channel = discord.utils.get(member.guild.text_channels, name="staff-only")
@@ -129,7 +128,7 @@ async def on_member_remove(member):
 
 @client.event
 async def on_message_delete(message):
-    if message.author.bot:
+    if message.author.bot or not message.guild:
         return
     staff_channel = discord.utils.get(message.guild.text_channels, name="staff-only")
     if staff_channel:
@@ -138,7 +137,7 @@ async def on_message_delete(message):
 
 @client.event
 async def on_message_edit(before, after):
-    if before.author.bot or before.content == after.content:
+    if before.author.bot or before.content == after.content or not before.guild:
         return
     staff_channel = discord.utils.get(before.guild.text_channels, name="staff-only")
     if staff_channel:
@@ -149,7 +148,7 @@ async def on_message_edit(before, after):
 async def on_message(message):
     global is_afk, afk_pesan
 
-    if message.author == client.user:
+    if message.author == client.user or not message.guild:
         return
 
     # --- FITUR ANTI-PHISHING & SPAM LINK ---
