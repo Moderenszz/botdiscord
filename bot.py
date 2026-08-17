@@ -15,7 +15,7 @@ intents.guilds = True
 client = discord.Client(intents=intents)
 
 # Variabel Global pikeun simpen status AFK & Anti-Raid
-MY_DISCORD_ID = 1473994384059011124  # Ganti ku ID Discord anjeun
+MY_DISCORD_ID = 1473994384059011124  # ID Discord anjeun
 is_afk = False
 afk_pesan = ""
 
@@ -108,12 +108,11 @@ async def on_member_join(member):
     global recent_joins
     now = datetime.now()
     recent_joins.append(now)
-    # Bersihkan data join anu liwat ti 10 detik ka tukang
     recent_joins = [t for t in recent_joins if (now - t).total_seconds() < 10]
     
     staff_channel = discord.utils.get(member.guild.text_channels, name="staff-only")
     
-    if len(recent_joins) >= 5: # Mun aya 5 jalma asup sakaligus dina 10 detik
+    if len(recent_joins) >= 5:
         if staff_channel:
             await staff_channel.send(f"🚨 **PERINGATAN ANTI-RAID!** Terdeteksi seueur akun anu gabung dina waktos singget! Mohon waspada.")
 
@@ -142,7 +141,6 @@ async def on_message_edit(before, after):
     staff_channel = discord.utils.get(before.guild.text_channels, name="staff-only")
     if staff_channel:
         await staff_channel.send(f"✏️ **Pesen Diedit** ku {before.author.mention} di channel {before.channel.mention}:\n> *Sateuacan:* {before.content}\n> *Sesudah:* {after.content}")
-
 
 @client.event
 async def on_message(message):
