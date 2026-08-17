@@ -8,6 +8,7 @@ import io
 import aiohttp
 import math
 import sympy as sp
+import re
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -82,7 +83,7 @@ async def on_message(message):
             "🤖 **Daptar Command Bot:**\n"
             "• `!jodoh @u1 @u2` - Cek kecocokan (Visual Profil & UI Ageung)\n"
             "• `!dadu` - Ngocok angka dadu (1-6)\n"
-            "• `!bantuan [soal]` - Kalkulator & Limit Otomatis (SD, SMP, SMA)\n"
+            "• `!bantuan [soal]` - Kalkulator, Aljabar, & Limit Otomatis\n"
             "• `!tanggal` - Cek wanci & tanggal\n"
             "• `!cuaca` - Cek cuaca akurat sesuai waktu\n"
             "• `!ping` - Cek latensi bot\n"
@@ -107,15 +108,17 @@ async def on_message(message):
     elif content.startswith('!dadu'):
         await message.channel.send(f"🎲 Hasil dadu: **{random.randint(1, 6)}**")
 
-    # 3. !bantuan (Kalkulator, SD, SMP, SMA, & Limit Pintar Otomatis)
+    # 3. !bantuan (Kalkulator, Aljabar 2x+2y, & Limit Pintar)
     elif content.startswith('!bantuan'):
         soal_teks = message.content[8:].strip()
         if not soal_teks:
-            await message.channel.send("⚠️ Conto: `!bantuan 15 + 25` atawa `!bantuan lim x menuju 0, (sin(x)/x)**(1/(x*tan(x)))`")
+            await message.channel.send("⚠️ Conto: `!bantuan 2x + 2y` atawa `!bantuan lim x menuju 0, (sin(x)/x)`")
             return
         try:
             soal_lower = soal_teks.lower()
             x = sp.Symbol('x')
+            y = sp.Symbol('y')
+            z = sp.Symbol('z')
             
             # Deteksi Limit Otomatis
             if "lim" in soal_lower or "limit" in soal_lower:
@@ -133,7 +136,6 @@ async def on_message(message):
                     except:
                         arah_val = 0
 
-                # Pisahkeun bagian rumus sanggeus koma atawa kecap konci
                 rumus_lim = soal_teks
                 if "," in rumus_lim:
                     rumus_lim = rumus_lim.split(",")[1]
@@ -149,13 +151,17 @@ async def on_message(message):
                 await message.channel.send(f"🧮 **Hasil Limit:** `{hasil_limit}`")
                 return
 
-            # Kalkulator Matematika Biasa (SD, SMP, SMA)
-            rumus_biasa = soal_teks.replace("^", "**")
-            hasil = eval(rumus_biasa, {"__builtins__": None}, {"math": math, "sp": sp, "sin": sp.sin, "cos": sp.cos, "tan": sp.tan, "sqrt": sp.sqrt})
-            await message.channel.send(f"🧮 Hasil tina `{soal_teks}` nyaéta: **{hasil}**")
+            # Aljabar & Aritmatika Biasa (Otomatis nambahkeun tanda * sapertos 2x janten 2*x)
+            rumus_aljabar = soal_teks.replace("=", "").strip().replace("^", "**")
+            rumus_bersih = re.sub(r'(\d)([a-zA-Z(])', r'\1*\2', rumus_aljabar)
+            
+            expr = sp.sympify(rumus_bersih)
+            hasil_simp = sp.simplify(expr)
+            
+            await message.channel.send(f"🧮 Hasil tina `{soal_teks}` nyaéta: **{hasil_simp}**")
             
         except Exception as e:
-            await message.channel.send("❌ Hapunten, rumus pabalatak atanapi teu dipikaharti! Pastikeun formatna bener.")
+            await message.channel.send(f"❌ Hapunten, rumus teu dipikaharti! Pastikeun formatna bener.")
 
     # 4. !tanggal
     elif content == '!tanggal':
