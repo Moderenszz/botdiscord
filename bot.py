@@ -82,7 +82,7 @@ async def on_message(message):
             "🤖 **Daptar Command Bot:**\n"
             "• `!jodoh @u1 @u2` - Cek kecocokan (Visual Profil & UI Ageung)\n"
             "• `!dadu` - Ngocok angka dadu (1-6)\n"
-            "• `!bantuan [soal]` - Kalkulator matematika / Limit (Siga gaya si Gyann!)\n"
+            "• `!bantuan [soal]` - Kalkulator & Limit Otomatis (SD, SMP, SMA)\n"
             "• `!tanggal` - Cek wanci & tanggal\n"
             "• `!cuaca` - Cek cuaca akurat sesuai waktu\n"
             "• `!ping` - Cek latensi bot\n"
@@ -107,27 +107,55 @@ async def on_message(message):
     elif content.startswith('!dadu'):
         await message.channel.send(f"🎲 Hasil dadu: **{random.randint(1, 6)}**")
 
-    # 3. !bantuan (Kalkulator & Limit ala Gyann)
+    # 3. !bantuan (Kalkulator, SD, SMP, SMA, & Limit Pintar Otomatis)
     elif content.startswith('!bantuan'):
         soal_teks = message.content[8:].strip()
         if not soal_teks:
-            await message.channel.send("⚠️ Conto: `!bantuan 15 + 25` atawa `!bantuan limit sin(x)/x untuk x menuju 0`")
+            await message.channel.send("⚠️ Conto: `!bantuan 15 + 25` atawa `!bantuan lim x menuju 0, (sin(x)/x)**(1/(x*tan(x)))`")
             return
         try:
             soal_lower = soal_teks.lower()
-            if "limit" in soal_lower or "lim" in soal_lower:
-                x = sp.Symbol('x')
-                if "sin(x)/x" in soal_lower or "sin x / x" in soal_lower:
-                    arah = sp.oo if "tak hingga" in soal_lower or "oo" in soal_lower else 0
-                    hasil_limit = sp.limit(sp.sin(x)/x, x, arah)
-                    await message.channel.send(f"🧮 **Hasil Limit:** `{hasil_limit}` (Kalkulasi otomatis matrikulasi aljabar)")
-                    return
+            x = sp.Symbol('x')
             
-            # Evaluasi matematika biasa
-            hasil = eval(soal_teks, {"__builtins__": None}, {"math": math, "sp": sp})
+            # Deteksi Limit Otomatis
+            if "lim" in soal_lower or "limit" in soal_lower:
+                arah_val = 0
+                if "tak hingga" in soal_lower or "oo" in soal_lower:
+                    arah_val = sp.oo
+                elif "menuju" in soal_lower:
+                    try:
+                        idx = soal_lower.index("menuju")
+                        sub_str = soal_lower[idx+6:].strip().split(",")[0].split()[0]
+                        if "tak hingga" in sub_str or "oo" in sub_str:
+                            arah_val = sp.oo
+                        else:
+                            arah_val = float(sub_str)
+                    except:
+                        arah_val = 0
+
+                # Pisahkeun bagian rumus sanggeus koma atawa kecap konci
+                rumus_lim = soal_teks
+                if "," in rumus_lim:
+                    rumus_lim = rumus_lim.split(",")[1]
+                else:
+                    for kw in ["lim x menuju", "limit x menuju", "lim", "limit"]:
+                        if kw in rumus_lim.lower():
+                            rumus_lim = rumus_lim.lower().replace(kw, "", 1)
+
+                rumus_lim = rumus_lim.strip().replace("^", "**")
+                expr = sp.sympify(rumus_lim)
+                hasil_limit = sp.limit(expr, x, arah_val)
+                
+                await message.channel.send(f"🧮 **Hasil Limit:** `{hasil_limit}`")
+                return
+
+            # Kalkulator Matematika Biasa (SD, SMP, SMA)
+            rumus_biasa = soal_teks.replace("^", "**")
+            hasil = eval(rumus_biasa, {"__builtins__": None}, {"math": math, "sp": sp, "sin": sp.sin, "cos": sp.cos, "tan": sp.tan, "sqrt": sp.sqrt})
             await message.channel.send(f"🧮 Hasil tina `{soal_teks}` nyaéta: **{hasil}**")
-        except Exception:
-            await message.channel.send("❌ Hapunten, rumus teu dipikaharti! Coba format angka biasa atanapi syntax matematika anu bener.")
+            
+        except Exception as e:
+            await message.channel.send("❌ Hapunten, rumus pabalatak atanapi teu dipikaharti! Pastikeun formatna bener.")
 
     # 4. !tanggal
     elif content == '!tanggal':
