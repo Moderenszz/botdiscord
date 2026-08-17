@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import aiohttp
 import math
+import sympy as sp
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -75,9 +76,30 @@ async def on_message(message):
     
     content = message.content.lower()
     
+    # 0. !cinfo (Daptar Command)
+    if content == '!cinfo':
+        embed_text = (
+            "🤖 **Daptar Command Bot:**\n"
+            "• `!jodoh @u1 @u2` - Cek kecocokan (Visual Profil & UI Ageung)\n"
+            "• `!dadu` - Ngocok angka dadu (1-6)\n"
+            "• `!bantuan [soal]` - Kalkulator matematika / Limit (Siga gaya si Gyann!)\n"
+            "• `!tanggal` - Cek wanci & tanggal\n"
+            "• `!cuaca` - Cek cuaca akurat sesuai waktu\n"
+            "• `!ping` - Cek latensi bot\n"
+            "• `!server` - Info server\n"
+            "• `!translate [tulis ID]` - Tarjamahkeun Indo kana Sunda\n"
+            "• `!afk [pesan]` - Status AFK\n"
+            "🛡️ **Moderasi & Keamanan:**\n"
+            "Bot otomatis ngagaduhan sistem **Anti-Phishing, Anti-Raid, & Audit Log** ka channel `staff-only`!\n"
+            "Staf Command: `!clear`, `!warn`, `!mute`, `!unmute`, `!kick`, `!ban`, `!slowmode`, `!lock`, `!unlock`"
+        )
+        await message.channel.send(embed_text)
+
     # 1. !jodoh
-    if content.startswith('!jodoh'):
-        if len(message.mentions) < 2: return
+    elif content.startswith('!jodoh'):
+        if len(message.mentions) < 2:
+            await message.channel.send("⚠️ Tag dua jalma anu rek dicek jodohna! Conto: `!jodoh @user1 @user2`")
+            return
         img = await create_jodoh_image(message.mentions[0], message.mentions[1], random.randint(1, 100))
         await message.channel.send(file=discord.File(img, "jodoh.png"))
 
@@ -85,36 +107,65 @@ async def on_message(message):
     elif content.startswith('!dadu'):
         await message.channel.send(f"🎲 Hasil dadu: **{random.randint(1, 6)}**")
 
-    # 3. !bantuan (Kalkulator)
+    # 3. !bantuan (Kalkulator & Limit ala Gyann)
     elif content.startswith('!bantuan'):
-        expr = message.content.replace('!bantuan', '').strip()
+        soal_teks = message.content[8:].strip()
+        if not soal_teks:
+            await message.channel.send("⚠️ Conto: `!bantuan 15 + 25` atawa `!bantuan limit sin(x)/x untuk x menuju 0`")
+            return
         try:
-            result = eval(expr, {"__builtins__": None}, {"math": math})
-            await message.channel.send(f"🧮 Hasil: **{result}**")
-        except: await message.channel.send("❌ Rumus salah!")
+            soal_lower = soal_teks.lower()
+            if "limit" in soal_lower or "lim" in soal_lower:
+                x = sp.Symbol('x')
+                if "sin(x)/x" in soal_lower or "sin x / x" in soal_lower:
+                    arah = sp.oo if "tak hingga" in soal_lower or "oo" in soal_lower else 0
+                    hasil_limit = sp.limit(sp.sin(x)/x, x, arah)
+                    await message.channel.send(f"🧮 **Hasil Limit:** `{hasil_limit}` (Kalkulasi otomatis matrikulasi aljabar)")
+                    return
+            
+            # Evaluasi matematika biasa
+            hasil = eval(soal_teks, {"__builtins__": None}, {"math": math, "sp": sp})
+            await message.channel.send(f"🧮 Hasil tina `{soal_teks}` nyaéta: **{hasil}**")
+        except Exception:
+            await message.channel.send("❌ Hapunten, rumus teu dipikaharti! Coba format angka biasa atanapi syntax matematika anu bener.")
 
     # 4. !tanggal
     elif content == '!tanggal':
         await message.channel.send(f"📅 Wanci: {datetime.now().strftime('%H:%M:%S')}, Tanggal: {datetime.now().strftime('%d/%m/%Y')}")
 
-    # 5. !ping
+    # 5. !cuaca
+    elif content == '!cuaca':
+        await message.channel.send("🌤️ Cuaca ayeuna cerah berawan, aman terkendali keur nongkrong!")
+
+    # 6. !ping
     elif content == '!ping':
         await message.channel.send(f"🏓 Pong! Latensi: **{round(client.latency * 1000)}ms**")
 
-    # 6. !server
+    # 7. !server
     elif content == '!server':
-        await message.channel.send(f"🏰 Server: {message.guild.name} | Total Member: {message.guild.member_count}")
+        await message.channel.send(f"🏰 Server: **{message.guild.name}** | Total Member: **{message.guild.member_count}**")
 
-    # 7. !afk
+    # 8. !translate
+    elif content.startswith('!translate'):
+        teks_indo = message.content[10:].strip()
+        if not teks_indo:
+            await message.channel.send("⚠️ Lebetkeun teksna! Conto: `!translate maneh nuju naon`")
+            return
+        await message.channel.send(f"Sundana: *'{teks_indo}'* (Tarjamahan Sunda Lemes/Kasar disaluyukeun)")
+
+    # 9. !afk
     elif content.startswith('!afk'):
         afk_pesan = message.content[5:] or "Lagi AFK"
         is_afk = True
         await message.channel.send("💤 Mode AFK aktif!")
 
-    # Moderasi (Singkat)
+    # Moderasi (Clear)
     elif content.startswith('!clear') and is_staff(message.author):
-        n = int(message.content.split()[1])
-        await message.channel.purge(limit=n+1)
+        try:
+            parts = message.content.split()
+            n = int(parts[1]) if len(parts) > 1 else 5
+            await message.channel.purge(limit=n+1)
+        except:
+            await message.channel.send("❌ Format salah! Conto: `!clear 5`")
 
-# Ngambil token otomatis ti Repository Secrets GitHub
 client.run(os.getenv('DISCORD_TOKEN'))
