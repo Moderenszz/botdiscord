@@ -3,20 +3,24 @@ import random
 from datetime import datetime
 import discord
 from discord.ext import tasks
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 import io
 import aiohttp
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.guilds = True
 
 client = discord.Client(intents=intents)
 
-# Variabel Global pikeun simpen status AFK
-MY_DISCORD_ID = 0  # Ganti ku ID Discord anjeun
+# Variabel Global pikeun simpen status AFK & Anti-Raid
+MY_DISCORD_ID = 1473994384059011124  # Ganti ku ID Discord anjeun
 is_afk = False
 afk_pesan = ""
+
+# Track join member pikeun deteksi Anti-Raid sederhana
+recent_joins = []
 
 @tasks.loop(hours=24)
 async def update_status_tanggal():
@@ -45,16 +49,12 @@ async def get_circular_avatar(user):
                 data = await resp.read()
                 img = Image.open(io.BytesIO(data)).convert("RGBA")
                 img = img.resize((120, 120))
-                
-                # Bunderkeun gambar
                 mask = Image.new("L", (120, 120), 0)
                 draw = ImageDraw.Draw(mask)
                 draw.ellipse((0, 0, 120, 120), fill=255)
-                
                 output = Image.new("RGBA", (120, 120), (0, 0, 0, 0))
                 output.paste(img, (0, 0), mask=mask)
                 return output
-    # Fallback lamun gagal
     return Image.new("RGBA", (120, 120), (50, 50, 50, 255))
 
 # Fungsi Generate Gambar Jodoh UI Full, Ageung, & Aya Profil Avatar
@@ -63,7 +63,6 @@ async def create_jodoh_image(user1, user2, percent):
     image = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(image)
     
-    # Gradiasi manual ti biru tua ka biru caang (Gaya Sortamenfy)
     for y in range(height):
         r = int(5 + (30 - 5) * (y / height))
         g = int(10 + (100 - 10) * (y / height))
@@ -79,29 +78,22 @@ async def create_jodoh_image(user1, user2, percent):
         font_kecil = ImageFont.load_default()
         font_persen = ImageFont.load_default()
 
-    # Candak Avatar Dua Pamilon
     avatar1 = await get_circular_avatar(user1)
     avatar2 = await get_circular_avatar(user2)
 
-    # Tempelkeun Avatar & Teks Jodoh 1 (Kénca)
     image.paste(avatar1, (50, 80), avatar1)
     draw.text((190, 85), "Jodoh 1:", fill=(150, 200, 255), font=font_kecil)
     draw.text((190, 115), f"{user1.display_name}", fill=(255, 255, 255), font=font_besar)
     draw.text((190, 155), f"@{user1.name}", fill=(170, 170, 170), font=font_kecil)
 
-    # Love Icon / Simbol di Tengah
     draw.text((375, 170), "❤️", fill=(255, 70, 100), font=font_besar)
 
-    # Tempelkeun Avatar & Teks Jodoh 2 (Katuhu)
     image.paste(avatar2, (50, 230), avatar2)
     draw.text((190, 235), "Jodoh 2:", fill=(150, 200, 255), font=font_kecil)
     draw.text((190, 265), f"{user2.display_name}", fill=(255, 255, 255), font=font_besar)
     draw.text((190, 305), f"@{user2.name}", fill=(170, 170, 170), font=font_kecil)
 
-    # Garis Pamingpin Handap
     draw.line([(50, 360), (750, 360)], fill=(50, 120, 200), width=2)
-
-    # Tingkat Kecocokan
     draw.text((500, 70), f"Tingkat Kecocokannya:", fill=(200, 220, 255), font=font_kecil)
     draw.text((500, 100), f"{percent}%", fill=(255, 255, 0), font=font_persen)
     
@@ -110,12 +102,68 @@ async def create_jodoh_image(user1, user2, percent):
     buffer.seek(0)
     return buffer
 
+# --- EVENT AUDIT LOG & KEAMANAN (ANTI-RAID / PHISHING) ---
+@client.event
+async def on_member_join(member):
+    # Fitur Anti-Raid Sederhana
+    now = datetime.now()
+    recent_joins.append(now)
+    # Bersihkan data join anu liwat ti 10 detik ka tukang
+    global recent_joins
+    recent_joins = [t for t in recent_joins if (now - t).total_seconds() < 10]
+    
+    staff_channel = discord.utils.get(member.guild.text_channels, name="staff-only")
+    
+    if len(recent_joins) >= 5: # Mun aya 5 jalma asup sakaligus dina 10 detik
+        if staff_channel:
+            await staff_channel.send(f"🚨 **PERINGATAN ANTI-RAID!** Terdeteksi seueur akun anu gabung dina waktos singget! Mohon waspada.")
+
+    if staff_channel:
+        await staff_channel.send(f"📥 **Member Gabung:** {member.mention} (`{member.name}`)")
+
+@client.event
+async def on_member_remove(member):
+    staff_channel = discord.utils.get(member.guild.text_channels, name="staff-only")
+    if staff_channel:
+        await staff_channel.send(f"📤 **Member Kaluar:** {member.name}")
+
+@client.event
+async def on_message_delete(message):
+    if message.author.bot:
+        return
+    staff_channel = discord.utils.get(message.guild.text_channels, name="staff-only")
+    if staff_channel:
+        content = message.content if message.content else "[Pesen kosong / Media]"
+        await staff_channel.send(f"🗑️ **Pesen Dihapus** ti {message.author.mention} di channel {message.channel.mention}:\n> {content}")
+
+@client.event
+async def on_message_edit(before, after):
+    if before.author.bot or before.content == after.content:
+        return
+    staff_channel = discord.utils.get(before.guild.text_channels, name="staff-only")
+    if staff_channel:
+        await staff_channel.send(f"✏️ **Pesen Diedit** ku {before.author.mention} di channel {before.channel.mention}:\n> *Sateuacan:* {before.content}\n> *Sesudah:* {after.content}")
+
+
 @client.event
 async def on_message(message):
     global is_afk, afk_pesan
 
     if message.author == client.user:
         return
+
+    # --- FITUR ANTI-PHISHING & SPAM LINK ---
+    phishing_keywords = ["discord-nitro", "steam-gift", "free-nitro", "airdrop", "crypto-giveaway", "steamcommunity.ru/gift"]
+    if any(keyword in message.content.lower() for keyword in phishing_keywords) and not is_staff(message.author):
+        try:
+            await message.delete()
+            staff_channel = discord.utils.get(message.guild.text_channels, name="staff-only")
+            if staff_channel:
+                await staff_channel.send(f"🛡️ **Peringatan Phishing Dihadang!** Pesen ti {message.author.mention} dipupus sabab ngandung link/kecap phising.")
+            await message.channel.send(f"⚠️ {message.author.mention}, pesen anjeun dipupus ku bot sabab terdeteksi ngandung link berbahaya (Phishing/Scam)!", delete_after=5)
+            return
+        except Exception:
+            pass
 
     # --- FITUR AFK SYSTEM ---
     if is_afk and client.user.id != message.author.id:
@@ -285,8 +333,9 @@ async def on_message(message):
             "> • `!server` - Info server\n"
             "> • `!translate [tulis ID]` - Tarjamahkeun Indo kana Sunda\n"
             "> • `!afk [pesan]` - Status AFK\n"
-            "> 🛡️ **Moderasi (Staf Only):**\n"
-            "> `!clear`, `!warn`, `!mute`, `!unmute`, `!kick`, `!ban`, `!slowmode`, `!lock`, `!unlock`"
+            "> 🛡️ **Moderasi & Keamanan:** \n"
+            "> Bot otomatis ngagaduhan sistem **Anti-Phishing**, **Anti-Raid**, & **Audit Log** ka channel `staff-only`!\n"
+            "> Staf Command: `!clear`, `!warn`, `!mute`, `!unmute`, `!kick`, `!ban`, `!slowmode`, `!lock`, `!unlock`"
         )
         await message.channel.send(balasan)
 
@@ -303,7 +352,7 @@ async def on_message(message):
             hasil = eval(soal)
             await message.channel.send(f"🧮 Hasil tina `{soal}` nyaéta: **{hasil}**")
         except Exception:
-            await message.channel.send("❌ Gagal ngitung! Pastikeunformat matematika bener.")
+            await message.channel.send("❌ Gagal ngitung! Pastikeun format matematika bener.")
 
     elif msg.startswith('!translate'):
         teks_indo = message.content[10:].strip().lower()
