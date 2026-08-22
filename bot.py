@@ -80,18 +80,21 @@ async def on_message(message):
     # 0. !cinfo (Daptar Command)
     if content == '!cinfo':
         embed_text = (
-            "🤖 **Daptar Command Bot:**\n"
-            "• `!jodoh @u1 @u2` - Cek kecocokan (Visual Profil & UI Ageung)\n"
+            "🤖 **Daptar Command Bot Sunda Weh:**\n"
+            "• `!jodoh @u1 @u2` - Cek kecocokan (Visual Profil)\n"
             "• `!dadu` - Ngocok angka dadu (1-6)\n"
-            "• `!bantuan [soal]` - Kalkulator, Aljabar, & Limit Otomatis\n"
+            "• `!bantuan [soal]` - Kalkulator, Aljabar (2x+2y), & Limit Otomatis\n"
+            "• `!gombal` - Nyobaan merenahkeun / ngagombal acak\n"
+            "• `!tebakangka` - Mawa kaulinan leutik tebak angka 1-10\n"
+            "• `!quotes` - Mawa pituah / Ṗribahasa Sunda / motivasi\n"
             "• `!tanggal` - Cek wanci & tanggal\n"
-            "• `!cuaca` - Cek cuaca akurat sesuai waktu\n"
+            "• `!cuaca` - Cek cuaca akurat\n"
             "• `!ping` - Cek latensi bot\n"
             "• `!server` - Info server\n"
-            "• `!translate [tulis ID]` - Tarjamahkeun Indo kana Sunda\n"
+            "• `!translate [teks]` - Tarjamahkeun / info basa Sunda\n"
             "• `!afk [pesan]` - Status AFK\n"
             "🛡️ **Moderasi & Keamanan:**\n"
-            "Bot otomatis ngagaduhan sistem **Anti-Phishing, Anti-Raid, & Audit Log** ka channel `staff-only`!\n"
+            "Bot dilengkepan sistem **Anti-Phishing, Anti-Raid, & Audit Log**!\n"
             "Staf Command: `!clear`, `!warn`, `!mute`, `!unmute`, `!kick`, `!ban`, `!slowmode`, `!lock`, `!unlock`"
         )
         await message.channel.send(embed_text)
@@ -151,7 +154,7 @@ async def on_message(message):
                 await message.channel.send(f"🧮 **Hasil Limit:** `{hasil_limit}`")
                 return
 
-            # Aljabar & Aritmatika Biasa (Otomatis nambahkeun tanda * sapertos 2x janten 2*x)
+            # Aljabar & Aritmatika Biasa
             rumus_aljabar = soal_teks.replace("=", "").strip().replace("^", "**")
             rumus_bersih = re.sub(r'(\d)([a-zA-Z(])', r'\1*\2', rumus_aljabar)
             
@@ -163,23 +166,52 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"❌ Hapunten, rumus teu dipikaharti! Pastikeun formatna bener.")
 
-    # 4. !tanggal
+    # --- TAMBAHAN COMMAND RANDOM AMAN ---
+    
+    # 4. !gombal (Gombalan santuy Sunda)
+    elif content == '!gombal':
+        pilihan_gombal = [
+            "Béntang mah loba di langit, tapi nu paling caang mah pas maneh seuri. 🌟",
+            "Manéh téh siga Wi-Fi publik, nyieun haté ieu nyambung terus padahal teu dipénta. 📶",
+            "Cita-cita mah hayang jadi arsitek, tapi ari ningali manéh mah hayangna jadi masa depan manéh. 🏛️",
+            "Samping hideung nu disangka kotor, padahal mah manis siga gula aren Sunda. ☕"
+        ]
+        await message.channel.send(f"💌 {random.choice(pilihan_gombal)}")
+
+    # 5. !tebakangka (Mini game tebak angka 1-10)
+    elif content == '!tebakangka':
+        angka_bot = random.randint(1, 10)
+        await message.channel.send(f"🎮 Urang geus mikirkeun hiji angka antara **1 sampai 10**. Coba tebak ku cara sebutkeun angka dina pikiran manéh (cukup acak wates 1-6 heula: `{random.randint(1, 10)}` rusiahna wkwk)!")
+
+    # 6. !quotes (Pituah / Kata Bijak Sunda)
+    elif content == '!quotes':
+        pilihan_quotes = [
+            "\"Kudu silih asih, silih asah, jeung silih asuh.\" — Pituah Sunda",
+            "\"Gusti méré cobaan sabab Gusti percaya manéh kuat nyanghareupanana.\"",
+            "\"Ulah leungit sumanget, sanajan hirup kadang siga script Roblox anu error waé.\"",
+            "\"Santuykeun, hirup mah teu semet ayeuna wungkul.\""
+        ]
+        await message.channel.send(f"📜 {random.choice(pilihan_quotes)}")
+
+    # -----------------------------------
+
+    # 7. !tanggal
     elif content == '!tanggal':
         await message.channel.send(f"📅 Wanci: {datetime.now().strftime('%H:%M:%S')}, Tanggal: {datetime.now().strftime('%d/%m/%Y')}")
 
-    # 5. !cuaca
+    # 8. !cuaca
     elif content == '!cuaca':
         await message.channel.send("🌤️ Cuaca ayeuna cerah berawan, aman terkendali keur nongkrong!")
 
-    # 6. !ping
+    # 9. !ping
     elif content == '!ping':
         await message.channel.send(f"🏓 Pong! Latensi: **{round(client.latency * 1000)}ms**")
 
-    # 7. !server
+    # 10. !server
     elif content == '!server':
         await message.channel.send(f"🏰 Server: **{message.guild.name}** | Total Member: **{message.guild.member_count}**")
 
-    # 8. !translate
+    # 11. !translate
     elif content.startswith('!translate'):
         teks_indo = message.content[10:].strip()
         if not teks_indo:
@@ -187,7 +219,7 @@ async def on_message(message):
             return
         await message.channel.send(f"Sundana: *'{teks_indo}'* (Tarjamahan Sunda Lemes/Kasar disaluyukeun)")
 
-    # 9. !afk
+    # 12. !afk
     elif content.startswith('!afk'):
         afk_pesan = message.content[5:] or "Lagi AFK"
         is_afk = True
